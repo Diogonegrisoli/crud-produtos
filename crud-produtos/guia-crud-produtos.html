@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guia CRUD de Produtos — Nginx + PHP + MySQL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Tokens ───────────────────────────────────────── */
+    :root {
+      --bg:        #0b0e13;
+      --surface:   #111520;
+      --card:      #161c2a;
+      --border:    #1f2d47;
+      --border2:   #263550;
+      --text:      #cdd6f4;
+      --muted:     #6c7faa;
+      --accent:    #89b4fa;
+      --green:     #a6e3a1;
+      --yellow:    #f9e2af;
+      --red:       #f38ba8;
+      --teal:      #94e2d5;
+      --purple:    #cba6f7;
+      --orange:    #fab387;
+      --gutter:    2.5rem;
+      --sidebar-w: 260px;
+      --radius:    10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Familjen Grotesk', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────── */
+    nav {
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: 0; left: 0;
+      height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      z-index: 50;
+    }
+
+    .nav-brand {
+      padding: 1.5rem 1.25rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand .logo {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: .8rem;
+      color: var(--green);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: .5rem;
+    }
+    .nav-brand .logo::before {
+      content: '▶';
+      color: var(--accent);
+      font-size: .65rem;
+    }
+    .nav-brand h2 {
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.3;
+    }
+    .nav-brand p {
+      font-size: .72rem;
+      color: var(--muted);
+      margin-top: .2rem;
+    }
+
+    .nav-section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .63rem;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--muted);
+      padding: 1.25rem 1.25rem .4rem;
+    }
+
+    nav a {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .45rem 1.25rem;
+      font-size: .82rem;
+      color: var(--muted);
+      text-decoration: none;
+      border-left: 2px solid transparent;
+      transition: all .15s;
+    }
+    nav a:hover { color: var(--text); background: rgba(137,180,250,.05); border-left-color: var(--border2); }
+    nav a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(137,180,250,.07); }
+    nav a .step-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .65rem;
+      background: var(--card);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: .1rem .35rem;
+      min-width: 22px;
+      text-align: center;
+      color: var(--muted);
+    }
+    nav a.active .step-num { border-color: var(--accent); color: var(--accent); }
+
+    .nav-footer {
+      margin-top: auto;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .68rem;
+      color: var(--muted);
+    }
+    .stack-pills { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; }
+    .pill {
+      padding: .15rem .5rem;
+      border-radius: 4px;
+      font-size: .65rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .pill-green  { background: rgba(166,227,161,.12); color: var(--green); border: 1px solid rgba(166,227,161,.25); }
+    .pill-blue   { background: rgba(137,180,250,.12); color: var(--accent); border: 1px solid rgba(137,180,250,.25); }
+    .pill-orange { background: rgba(250,179,135,.12); color: var(--orange); border: 1px solid rgba(250,179,135,.25); }
+    .pill-purple { background: rgba(203,166,247,.12); color: var(--purple); border: 1px solid rgba(203,166,247,.25); }
+
+    /* ── Main ────────────────────────────────────────── */
+    .content {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      padding: 3rem var(--gutter);
+      max-width: 860px;
+    }
+
+    /* ── Hero ────────────────────────────────────────── */
+    .hero {
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      animation: fadeUp .5s ease both;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .72rem;
+      color: var(--green);
+      background: rgba(166,227,161,.1);
+      border: 1px solid rgba(166,227,161,.2);
+      border-radius: 20px;
+      padding: .3rem .85rem;
+      margin-bottom: 1.25rem;
+    }
+    .hero-badge::before { content: '●'; font-size: .5rem; }
+    .hero h1 {
+      font-size: 2.4rem;
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -.03em;
+      margin-bottom: .75rem;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero-meta {
+      display: flex;
+      gap: .75rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    /* ── Sections ────────────────────────────────────── */
+    section {
+      margin-bottom: 3.5rem;
+      animation: fadeUp .5s ease both;
+    }
+    section:nth-child(2)  { animation-delay: .05s; }
+    section:nth-child(3)  { animation-delay: .10s; }
+    section:nth-child(4)  { animation-delay: .15s; }
+    section:nth-child(5)  { animation-delay: .20s; }
+    section:nth-child(6)  { animation-delay: .25s; }
+    section:nth-child(7)  { animation-delay: .30s; }
+    section:nth-child(8)  { animation-delay: .35s; }
+    section:nth-child(9)  { animation-delay: .40s; }
+    section:nth-child(10) { animation-delay: .45s; }
+    section:nth-child(11) { animation-delay: .50s; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .step-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem;
+      font-weight: 600;
+      background: var(--card);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: .25rem .65rem;
+      color: var(--accent);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      color: var(--text);
+    }
+    h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 1.5rem 0 .75rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    h3::before {
+      content: '//';
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem;
+      color: var(--muted);
+    }
+
+    p { color: var(--muted); margin-bottom: .75rem; font-size: .92rem; }
+    strong { color: var(--text); font-weight: 600; }
+
+    /* ── Code Blocks ─────────────────────────────────── */
+    .code-block {
+      margin: 1rem 0;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border2);
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--card);
+      padding: .55rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .code-lang {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .lang-bash   { color: var(--green); }
+    .lang-sql    { color: var(--orange); }
+    .lang-nginx  { color: var(--teal); }
+    .lang-php    { color: var(--purple); }
+    .lang-text   { color: var(--muted); }
+
+    .copy-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .65rem;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: .2rem .55rem;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+    pre {
+      background: #0d1117;
+      padding: 1.1rem 1.25rem;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8rem;
+      line-height: 1.65;
+      color: var(--text);
+    }
+    pre .c  { color: var(--muted); font-style: italic; }
+    pre .kw { color: var(--purple); }
+    pre .fn { color: var(--accent); }
+    pre .st { color: var(--green); }
+    pre .nu { color: var(--orange); }
+    pre .cm { color: var(--yellow); }
+
+    /* ── Callouts ────────────────────────────────────── */
+    .callout {
+      display: flex;
+      gap: .85rem;
+      padding: .9rem 1.1rem;
+      border-radius: var(--radius);
+      margin: 1rem 0;
+      font-size: .88rem;
+    }
+    .callout-icon { font-size: 1rem; flex-shrink: 0; margin-top: .05rem; }
+    .callout-info    { background: rgba(137,180,250,.08); border: 1px solid rgba(137,180,250,.2); }
+    .callout-warn    { background: rgba(249,226,175,.08); border: 1px solid rgba(249,226,175,.2); }
+    .callout-success { background: rgba(166,227,161,.08); border: 1px solid rgba(166,227,161,.2); }
+    .callout-info    p { color: rgba(137,180,250,.9); margin: 0; }
+    .callout-warn    p { color: rgba(249,226,175,.9); margin: 0; }
+    .callout-success p { color: rgba(166,227,161,.9); margin: 0; }
+
+    /* ── Answer list (mariadb-secure) ────────────────── */
+    .qa-list { display: grid; gap: .5rem; margin: .75rem 0; }
+    .qa-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: .75rem;
+      align-items: start;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: .6rem .9rem;
+      font-size: .85rem;
+    }
+    .qa-q { font-family: 'JetBrains Mono', monospace; font-size: .75rem; color: var(--muted); }
+    .qa-a { font-weight: 600; }
+    .qa-a.yes { color: var(--green); }
+    .qa-a.no  { color: var(--red); }
+    .qa-a.enter { color: var(--yellow); }
+
+    /* ── Table ───────────────────────────────────────── */
+    .table-wrap {
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 1rem 0;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    thead { background: var(--card); }
+    th {
+      text-align: left;
+      padding: .65rem 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .7rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border2);
+    }
+    td { padding: .6rem 1rem; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(137,180,250,.04); }
+    td code, th code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem;
+      background: var(--card);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: .1rem .4rem;
+      color: var(--orange);
+    }
+    .method {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .72rem;
+      font-weight: 700;
+      padding: .2rem .5rem;
+      border-radius: 4px;
+    }
+    .m-get    { background: rgba(166,227,161,.12); color: var(--green); }
+    .m-post   { background: rgba(137,180,250,.12); color: var(--accent); }
+    .m-put    { background: rgba(249,226,175,.12); color: var(--yellow); }
+    .m-delete { background: rgba(243,139,168,.12); color: var(--red); }
+
+    /* ── File tree ───────────────────────────────────── */
+    .file-tree {
+      background: #0d1117;
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8rem;
+      line-height: 2;
+    }
+    .ft-dir  { color: var(--accent); }
+    .ft-file { color: var(--text); }
+    .ft-comment { color: var(--muted); }
+
+    /* ── Checklist ───────────────────────────────────── */
+    .checklist { list-style: none; display: grid; gap: .4rem; margin: .75rem 0; }
+    .checklist li {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      font-size: .88rem;
+      color: var(--muted);
+    }
+    .checklist li::before {
+      content: '✓';
+      color: var(--green);
+      font-weight: 700;
+      font-size: .85rem;
+      flex-shrink: 0;
+    }
+
+    /* ── Troubleshoot cards ───────────────────────────── */
+    .trouble-card {
+      background: var(--card);
+      border: 1px solid var(--border2);
+      border-left: 3px solid var(--red);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+    }
+    .trouble-card h4 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .82rem;
+      color: var(--red);
+      margin-bottom: .6rem;
+    }
+
+    /* ── Inline code ─────────────────────────────────── */
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8em;
+      background: var(--card);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: .1rem .4rem;
+      color: var(--orange);
+    }
+
+    /* ── Divider ─────────────────────────────────────── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
+
+    /* ── Responsive ──────────────────────────────────── */
+    @media (max-width: 900px) {
+      nav { transform: translateX(-100%); transition: transform .25s; }
+      nav.open { transform: translateX(0); }
+      .content { margin-left: 0; padding: 2rem 1.25rem; }
+      .menu-toggle {
+        display: flex;
+        position: fixed;
+        top: 1rem; left: 1rem;
+        z-index: 200;
+        background: var(--card);
+        border: 1px solid var(--border2);
+        border-radius: 8px;
+        padding: .5rem .7rem;
+        cursor: pointer;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .menu-toggle span { display: block; width: 18px; height: 2px; background: var(--text); border-radius: 1px; }
+    }
+    @media (min-width: 901px) {
+      .menu-toggle { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ──────────────────────────────────────────── -->
+<nav id="sidebar">
+  <div class="nav-brand">
+    <div class="logo">crud-produtos</div>
+    <h2>Guia de Instalação</h2>
+    <p>Nginx · PHP · MySQL · Git</p>
+  </div>
+
+  <div class="nav-section-label">Instalação</div>
+  <a href="#passo-0"><span class="step-num">00</span> Preparar sistema</a>
+  <a href="#passo-1"><span class="step-num">01</span> Instalar Nginx</a>
+  <a href="#passo-2"><span class="step-num">02</span> Instalar PHP 8.4</a>
+  <a href="#passo-3"><span class="step-num">03</span> Instalar MySQL</a>
+  <a href="#passo-4"><span class="step-num">04</span> Instalar Git</a>
+
+  <div class="nav-section-label">Configuração</div>
+  <a href="#passo-5"><span class="step-num">05</span> Banco de dados</a>
+  <a href="#passo-6"><span class="step-num">06</span> Arquivos do site</a>
+  <a href="#passo-7"><span class="step-num">07</span> Configurar Nginx</a>
+
+  <div class="nav-section-label">Finalização</div>
+  <a href="#passo-8"><span class="step-num">08</span> Testar e acessar</a>
+  <a href="#passo-9"><span class="step-num">09</span> Estrutura</a>
+  <a href="#passo-10"><span class="step-num">!</span> Solução de problemas</a>
+
+  <div class="nav-footer">
+    <div>Stack utilizada</div>
+    <div class="stack-pills">
+      <span class="pill pill-green">Nginx</span>
+      <span class="pill pill-purple">PHP 8.4</span>
+      <span class="pill pill-orange">MariaDB</span>
+      <span class="pill pill-blue">Git</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Mobile Toggle ────────────────────────────────────── -->
+<button class="menu-toggle" id="menuToggle" aria-label="Menu">
+  <span></span><span></span><span></span>
+</button>
+
+<!-- ── Content ──────────────────────────────────────────── -->
+<main class="content">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-badge">Debian 13 / Ubuntu 24.04</div>
+    <h1>CRUD de Produtos<br /><span>Nginx + PHP + MySQL</span></h1>
+    <p>Guia passo a passo para instalar e configurar o ambiente de servidor e implantar um sistema completo de gestão de produtos com API REST em PHP.</p>
+    <div class="hero-meta">
+      <span class="pill pill-green">Nginx</span>
+      <span class="pill pill-purple">PHP 8.4</span>
+      <span class="pill pill-orange">MariaDB</span>
+      <span class="pill pill-blue">Git</span>
+    </div>
+  </div>
+
+  <!-- ── Passo 0 ── -->
+  <section id="passo-0">
+    <div class="section-header">
+      <span class="step-badge">PASSO 00</span>
+      <h2>Preparar o sistema</h2>
+    </div>
+    <p>Antes de qualquer coisa, atualize os pacotes do sistema para garantir que tudo esteja na versão mais recente.</p>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Atualizar lista de pacotes e instalar atualizações</span>
+sudo apt update && sudo apt upgrade -y
+
+<span class="c"># Instalar utilitários básicos</span>
+sudo apt install -y curl wget unzip git</pre>
+    </div>
+  </section>
+
+  <!-- ── Passo 1 ── -->
+  <section id="passo-1">
+    <div class="section-header">
+      <span class="step-badge">PASSO 01</span>
+      <h2>Instalar Nginx</h2>
+    </div>
+    <p>O Nginx é o servidor web que vai receber as requisições e repassar ao PHP.</p>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Instalar o Nginx</span>
+sudo apt install -y nginx
+
+<span class="c"># Habilitar e iniciar o serviço automaticamente</span>
+sudo systemctl enable --now nginx
+
+<span class="c"># Verificar se está rodando (deve mostrar "active (running)")</span>
+sudo systemctl status nginx</pre>
+    </div>
+    <div class="callout callout-success">
+      <span class="callout-icon">✓</span>
+      <p><strong>Teste:</strong> Acesse <code>http://SEU-IP</code> no navegador — deve aparecer a página de boas-vindas do Nginx.</p>
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Remover o virtual host padrão para evitar conflitos</span>
+sudo rm /etc/nginx/sites-enabled/default</pre>
+    </div>
+  </section>
+
+  <!-- ── Passo 2 ── -->
+  <section id="passo-2">
+    <div class="section-header">
+      <span class="step-badge">PASSO 02</span>
+      <h2>Instalar PHP 8.4</h2>
+    </div>
+    <p>O PHP-FPM processa os scripts PHP e se comunica com o Nginx via socket Unix.</p>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Instalar PHP-FPM e extensões necessárias</span>
+sudo apt install -y php-fpm php-mysql php-curl php-mbstring php-json
+
+<span class="c"># Habilitar e iniciar o PHP-FPM</span>
+sudo systemctl enable --now php8.4-fpm
+
+<span class="c"># Confirmar a versão instalada</span>
+php --version</pre>
+    </div>
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠</span>
+      <p>No <strong>Debian 13</strong> a versão padrão é 8.4. No <strong>Ubuntu 24.04</strong> pode ser 8.3. Se necessário, substitua <code>php8.4-fpm</code> pela versão instalada. Verifique com <code>ls /run/php/</code>.</p>
+    </div>
+  </section>
+
+  <!-- ── Passo 3 ── -->
+  <section id="passo-3">
+    <div class="section-header">
+      <span class="step-badge">PASSO 03</span>
+      <h2>Instalar MySQL / MariaDB</h2>
+    </div>
+    <p>O MariaDB é compatível com MySQL e é o banco de dados padrão no Debian moderno.</p>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Instalar MariaDB</span>
+sudo apt install -y mariadb-server
+
+<span class="c"># Habilitar e iniciar</span>
+sudo systemctl enable --now mariadb
+
+<span class="c"># Executar o assistente de segurança</span>
+sudo mariadb-secure-installation</pre>
+    </div>
+
+    <h3>Respostas recomendadas no assistente</h3>
+    <div class="qa-list">
+      <div class="qa-item">
+        <span class="qa-q">Enter current password for root</span>
+        <span class="qa-a enter">↵ Enter (sem senha ainda)</span>
+      </div>
+      <div class="qa-item">
+        <span class="qa-q">Switch to unix_socket authentication?</span>
+        <span class="qa-a no">N</span>
+      </div>
+      <div class="qa-item">
+        <span class="qa-q">Change the root password?</span>
+        <span class="qa-a yes">Y → defina uma senha forte</span>
+      </div>
+      <div class="qa-item">
+        <span class="qa-q">Remove anonymous users?</span>
+        <span class="qa-a yes">Y</span>
+      </div>
+      <div class="qa-item">
+        <span class="qa-q">Disallow root login remotely?</span>
+        <span class="qa-a yes">Y</span>
+      </div>
+      <div class="qa-item">
+        <span class="qa-q">Remove test database?</span>
+        <span class="qa-a yes">Y</span>
+      </div>
+      <div class="qa-item">
+        <span class="qa-q">Reload privilege tables?</span>
+        <span class="qa-a yes">Y</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Passo 4 ── -->
+  <section id="passo-4">
+    <div class="section-header">
+      <span class="step-badge">PASSO 04</span>
+      <h2>Instalar Git</h2>
+    </div>
+    <p>O Git permite versionar o código e clonar repositórios diretamente no servidor.</p>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Instalar Git</span>
+sudo apt install -y git
+
+<span class="c"># Verificar a instalação</span>
+git --version
+
+<span class="c"># Configurar identidade (opcional, para commits)</span>
+git config --global user.name <span class="st">"Seu Nome"</span>
+git config --global user.email <span class="st">"seu@email.com"</span></pre>
+    </div>
+  </section>
+
+  <!-- ── Passo 5 ── -->
+  <section id="passo-5">
+    <div class="section-header">
+      <span class="step-badge">PASSO 05</span>
+      <h2>Criar o banco de dados</h2>
+    </div>
+    <p>Execute o script SQL para criar o banco, tabelas e dados de exemplo de uma só vez.</p>
+
+    <h3>Opção A — Arquivo SQL (recomendado)</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Importar o script database.sql diretamente</span>
+sudo mysql -u root -p &lt; /var/www/crud-produtos/database.sql</pre>
+    </div>
+
+    <h3>Opção B — Manualmente no shell</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre>sudo mysql -u root -p</pre>
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-sql">sql</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c">-- Criar banco de dados</span>
+<span class="kw">CREATE DATABASE IF NOT EXISTS</span> crud_produtos
+  <span class="kw">CHARACTER SET</span> utf8mb4
+  <span class="kw">COLLATE</span> utf8mb4_unicode_ci;
+
+<span class="kw">USE</span> crud_produtos;
+
+<span class="c">-- Tabela de categorias</span>
+<span class="kw">CREATE TABLE IF NOT EXISTS</span> categorias (
+  id          INT <span class="kw">AUTO_INCREMENT PRIMARY KEY</span>,
+  nome        <span class="kw">VARCHAR</span>(<span class="nu">100</span>) <span class="kw">NOT NULL</span>,
+  criado_em   <span class="kw">TIMESTAMP DEFAULT CURRENT_TIMESTAMP</span>
+) <span class="kw">ENGINE</span>=InnoDB;
+
+<span class="c">-- Tabela de produtos</span>
+<span class="kw">CREATE TABLE IF NOT EXISTS</span> produtos (
+  id           INT <span class="kw">AUTO_INCREMENT PRIMARY KEY</span>,
+  nome         <span class="kw">VARCHAR</span>(<span class="nu">200</span>) <span class="kw">NOT NULL</span>,
+  descricao    <span class="kw">TEXT</span>,
+  preco        <span class="kw">DECIMAL</span>(<span class="nu">10</span>, <span class="nu">2</span>) <span class="kw">NOT NULL DEFAULT</span> <span class="nu">0.00</span>,
+  estoque      INT <span class="kw">NOT NULL DEFAULT</span> <span class="nu">0</span>,
+  categoria_id INT,
+  imagem_url   <span class="kw">VARCHAR</span>(<span class="nu">500</span>),
+  ativo        <span class="kw">TINYINT</span>(<span class="nu">1</span>) <span class="kw">NOT NULL DEFAULT</span> <span class="nu">1</span>,
+  criado_em    <span class="kw">TIMESTAMP DEFAULT CURRENT_TIMESTAMP</span>,
+  atualizado_em <span class="kw">TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP</span>,
+  <span class="kw">FOREIGN KEY</span> (categoria_id) <span class="kw">REFERENCES</span> categorias(id) <span class="kw">ON DELETE SET NULL</span>
+) <span class="kw">ENGINE</span>=InnoDB;
+
+<span class="c">-- Dados de exemplo</span>
+<span class="kw">INSERT INTO</span> categorias (nome) <span class="kw">VALUES</span>
+  (<span class="st">'Eletrônicos'</span>), (<span class="st">'Roupas'</span>), (<span class="st">'Alimentos'</span>);
+
+<span class="kw">INSERT INTO</span> produtos (nome, descricao, preco, estoque, categoria_id) <span class="kw">VALUES</span>
+  (<span class="st">'Smartphone Galaxy'</span>, <span class="st">'Celular Android 128GB'</span>, <span class="nu">1299.90</span>, <span class="nu">15</span>, <span class="nu">1</span>),
+  (<span class="st">'Notebook Pro'</span>, <span class="st">'Notebook i5, 8GB RAM, SSD 256GB'</span>, <span class="nu">2899.99</span>, <span class="nu">8</span>, <span class="nu">1</span>),
+  (<span class="st">'Camiseta Algodão'</span>, <span class="st">'100% algodão'</span>, <span class="nu">49.90</span>, <span class="nu">100</span>, <span class="nu">2</span>);
+
+<span class="c">-- Criar usuário para a aplicação</span>
+<span class="kw">CREATE USER IF NOT EXISTS</span> <span class="st">'crud_user'</span>@<span class="st">'localhost'</span>
+  <span class="kw">IDENTIFIED BY</span> <span class="st">'SenhaForte@2024'</span>;
+<span class="kw">GRANT ALL PRIVILEGES ON</span> crud_produtos.* <span class="kw">TO</span> <span class="st">'crud_user'</span>@<span class="st">'localhost'</span>;
+<span class="kw">FLUSH PRIVILEGES</span>;</pre>
+    </div>
+  </section>
+
+  <!-- ── Passo 6 ── -->
+  <section id="passo-6">
+    <div class="section-header">
+      <span class="step-badge">PASSO 06</span>
+      <h2>Implantar os arquivos do site</h2>
+    </div>
+
+    <h3>1 — Criar o diretório</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre>sudo mkdir -p /var/www/crud-produtos/{api,config}</pre>
+    </div>
+
+    <h3>2 — Enviar os arquivos</h3>
+    <p><strong>Opção A — SCP do seu computador local:</strong></p>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre>scp -r ./crud-produtos/* usuario@SEU-IP:/var/www/crud-produtos/</pre>
+    </div>
+    <p><strong>Opção B — Clonar do Git:</strong></p>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre>cd /var/www
+sudo git clone https://github.com/SEU-USUARIO/crud-produtos.git</pre>
+    </div>
+
+    <h3>3 — Ajustar permissões</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Dar posse ao usuário www-data (usuário do Nginx)</span>
+sudo chown -R www-data:www-data /var/www/crud-produtos
+sudo chmod -R 755 /var/www/crud-produtos</pre>
+    </div>
+
+    <h3>4 — Editar credenciais do banco</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre>sudo nano /var/www/crud-produtos/config/database.php</pre>
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-php">php</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c">// Ajuste estes valores conforme o que você definiu no Passo 05</span>
+<span class="fn">define</span>(<span class="st">'DB_USER'</span>, <span class="st">'crud_user'</span>);
+<span class="fn">define</span>(<span class="st">'DB_PASS'</span>, <span class="st">'SenhaForte@2024'</span>); <span class="c">// ← mesma senha do passo 5</span></pre>
+    </div>
+  </section>
+
+  <!-- ── Passo 7 ── -->
+  <section id="passo-7">
+    <div class="section-header">
+      <span class="step-badge">PASSO 07</span>
+      <h2>Configurar o Nginx</h2>
+    </div>
+
+    <h3>1 — Criar o virtual host</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre>sudo nano /etc/nginx/sites-available/crud-produtos</pre>
+    </div>
+    <p>Cole o conteúdo abaixo no arquivo:</p>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-nginx">nginx</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre>server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    root /var/www/crud-produtos;
+    index index.html index.php;
+    server_name _;
+    charset utf-8;
+    client_max_body_size 10M;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    <span class="c"># Processar PHP via FastCGI</span>
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+    }
+
+    <span class="c"># Bloquear arquivos ocultos</span>
+    location ~ /\. {
+        deny all;
+    }
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json;
+
+    access_log /var/log/nginx/crud-access.log;
+    error_log  /var/log/nginx/crud-error.log;
+}</pre>
+    </div>
+
+    <h3>2 — Ativar e reiniciar</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Criar symlink para ativar o site</span>
+sudo ln -s /etc/nginx/sites-available/crud-produtos \
+           /etc/nginx/sites-enabled/
+
+<span class="c"># Testar a sintaxe da configuração</span>
+sudo nginx -t
+
+<span class="c"># Se OK, reiniciar o Nginx</span>
+sudo systemctl restart nginx</pre>
+    </div>
+    <div class="callout callout-success">
+      <span class="callout-icon">✓</span>
+      <p>Se o <code>nginx -t</code> retornar <strong>"syntax is ok / test is successful"</strong>, a configuração está correta.</p>
+    </div>
+  </section>
+
+  <!-- ── Passo 8 ── -->
+  <section id="passo-8">
+    <div class="section-header">
+      <span class="step-badge">PASSO 08</span>
+      <h2>Testar e acessar</h2>
+    </div>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-lang lang-bash">bash</span>
+        <button class="copy-btn" onclick="copiar(this)">copiar</button>
+      </div>
+      <pre><span class="c"># Testar a API via curl</span>
+curl http://localhost/api/produtos.php
+curl http://localhost/api/produtos.php?acao=categorias
+
+<span class="c"># Ver logs em tempo real</span>
+sudo tail -f /var/log/nginx/crud-error.log</pre>
+    </div>
+    <div class="callout callout-info">
+      <span class="callout-icon">ℹ</span>
+      <p>Acesse <code>http://SEU-IP-OU-DOMINIO</code> no navegador para ver o painel.</p>
+    </div>
+    <ul class="checklist">
+      <li>Listagem de produtos com busca e filtro por categoria</li>
+      <li>Formulário para criar novo produto</li>
+      <li>Edição de produto existente</li>
+      <li>Exclusão com diálogo de confirmação</li>
+      <li>Contadores de totais no cabeçalho</li>
+    </ul>
+  </section>
+
+  <!-- ── Passo 9 ── -->
+  <section id="passo-9">
+    <div class="section-header">
+      <span class="step-badge">PASSO 09</span>
+      <h2>Estrutura do projeto</h2>
+    </div>
+    <div class="file-tree">
+      <div><span class="ft-dir">/var/www/crud-produtos/</span></div>
+      <div>├── <span class="ft-file">index.html</span>          <span class="ft-comment">← Frontend (HTML + CSS + JS)</span></div>
+      <div>├── <span class="ft-dir">api/</span></div>
+      <div>│   └── <span class="ft-file">produtos.php</span>    <span class="ft-comment">← API REST (GET, POST, PUT, DELETE)</span></div>
+      <div>├── <span class="ft-dir">config/</span></div>
+      <div>│   └── <span class="ft-file">database.php</span>    <span class="ft-comment">← Configuração de conexão com o BD</span></div>
+      <div>└── <span class="ft-file">database.sql</span>        <span class="ft-comment">← Script SQL (executado uma vez)</span></div>
+    </div>
+
+    <h3>Endpoints da API</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Método</th><th>URL</th><th>Ação</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="method m-get">GET</span></td>
+            <td><code>/api/produtos.php</code></td>
+            <td>Listar todos os produtos</td>
+          </tr>
+          <tr>
+            <td><span class="method m-get">GET</span></td>
+            <td><code>/api/produtos.php?id=1</code></td>
+            <td>Buscar produto por ID</td>
+          </tr>
+          <tr>
+            <td><span class="method m-get">GET</span></td>
+            <td><code>/api/produtos.php?busca=abc</code></td>
+            <td>Buscar por nome / descrição</td>
+          </tr>
+          <tr>
+            <td><span class="method m-get">GET</span></td>
+            <td><code>/api/produtos.php?acao=categorias</code></td>
+            <td>Listar categorias</td>
+          </tr>
+          <tr>
+            <td><span class="method m-post">POST</span></td>
+            <td><code>/api/produtos.php</code></td>
+            <td>Criar novo produto</td>
+          </tr>
+          <tr>
+            <td><span class="method m-put">PUT</span></td>
+            <td><code>/api/produtos.php?id=1</code></td>
+            <td>Atualizar produto</td>
+          </tr>
+          <tr>
+            <td><span class="method m-delete">DELETE</span></td>
+            <td><code>/api/produtos.php?id=1</code></td>
+            <td>Excluir produto</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Passo 10 ── -->
+  <section id="passo-10">
+    <div class="section-header">
+      <span class="step-badge">!</span>
+      <h2>Solução de problemas</h2>
+    </div>
+
+    <div class="trouble-card">
+      <h4>Erro 502 Bad Gateway</h4>
+      <p style="margin-bottom:.75rem">Geralmente causado pelo socket do PHP-FPM incorreto.</p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang lang-bash">bash</span>
+          <button class="copy-btn" onclick="copiar(this)">copiar</button>
+        </div>
+        <pre><span class="c"># Verificar se o PHP-FPM está rodando</span>
+sudo systemctl status php8.4-fpm
+
+<span class="c"># Ver qual socket está disponível</span>
+ls /run/php/
+<span class="c"># Se aparecer php8.3-fpm.sock, ajuste no nginx.conf</span></pre>
+      </div>
+    </div>
+
+    <div class="trouble-card">
+      <h4>Erro de conexão com banco de dados</h4>
+      <p style="margin-bottom:.75rem">Credenciais incorretas ou usuário não criado.</p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang lang-bash">bash</span>
+          <button class="copy-btn" onclick="copiar(this)">copiar</button>
+        </div>
+        <pre><span class="c"># Testar a conexão manualmente</span>
+mysql -u crud_user -p crud_produtos
+
+<span class="c"># Recriar o usuário se necessário</span>
+sudo mysql -e <span class="st">"DROP USER IF EXISTS 'crud_user'@'localhost';"</span>
+sudo mysql -e <span class="st">"CREATE USER 'crud_user'@'localhost' IDENTIFIED BY 'SenhaForte@2024';"</span>
+sudo mysql -e <span class="st">"GRANT ALL PRIVILEGES ON crud_produtos.* TO 'crud_user'@'localhost';"</span>
+sudo mysql -e <span class="st">"FLUSH PRIVILEGES;"</span></pre>
+      </div>
+    </div>
+
+    <div class="trouble-card">
+      <h4>Erro de permissão (403 Forbidden)</h4>
+      <p style="margin-bottom:.75rem">O Nginx não tem acesso aos arquivos.</p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang lang-bash">bash</span>
+          <button class="copy-btn" onclick="copiar(this)">copiar</button>
+        </div>
+        <pre>sudo chown -R www-data:www-data /var/www/crud-produtos
+sudo chmod -R 755 /var/www/crud-produtos</pre>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // ── Copy button ──────────────────────────────────────────
+  function copiar(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    const text = pre.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = '✓ copiado';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'copiar';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  }
+
+  // ── Active nav link on scroll ────────────────────────────
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks  = document.querySelectorAll('nav a[href^="#"]');
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(a => a.classList.remove('active'));
+        const active = document.querySelector(`nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+
+  // ── Mobile menu ──────────────────────────────────────────
+  const toggle  = document.getElementById('menuToggle');
+  const sidebar = document.getElementById('sidebar');
+  toggle.addEventListener('click', () => sidebar.classList.toggle('open'));
+  document.addEventListener('click', e => {
+    if (!sidebar.contains(e.target) && !toggle.contains(e.target)) {
+      sidebar.classList.remove('open');
+    }
+  });
+  navLinks.forEach(a => a.addEventListener('click', () => sidebar.classList.remove('open')));
+</script>
+</body>
+</html>
